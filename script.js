@@ -1,23 +1,20 @@
-// 🔧 Step 1: Handle Form Submission
-const form = document.getElementById("testimonial-form");
+// Handle testimonial form submission
+const alertBox = document.getElementById("testimonial-alert");
 
-form.addEventListener("submit", async function(event) {
-  event.preventDefault();
+document.getElementById("testimonial-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
 
-  const name = document.getElementById("name").value.trim();
-  const position = document.getElementById("position").value.trim();
-  let rating = parseInt(document.getElementById("rating").value, 10);
-  const testimonial = document.getElementById("testimonial").value.trim();
+  const name = document.getElementById("name").value;
+  const position = document.getElementById("position").value;
+  const rating = document.getElementById("rating").value;
+  const testimonial = document.getElementById("testimonial").value;
 
-  // ✅ Ensure rating is between 1–5
-  rating = Math.min(Math.max(rating, 1), 5);
-
-  if (name && position && testimonial) {
-    const response = await fetch("http://localhost/cms_projects/wordpress/wp-json/wp/v2/comments", {
+  try {
+    const res = await fetch("http://localhost/cms_projects/wordpress/wp-json/wp/v2/comments", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": "Basic " + btoa("yourusername:yourapplicationpassword") // replace with your WP username + generated Application Password
+        "Authorization": "Basic " + btoa("yourusername:yourapplicationpassword")
       },
       body: JSON.stringify({
         author_name: name,
@@ -26,49 +23,64 @@ form.addEventListener("submit", async function(event) {
           position: position,
           rating: rating
         },
-        post: 1 // ID of the WordPress post/page where testimonials attach
+        post: 8 // Testimonials page ID
       })
     });
 
-    if (response.ok) {
-      alert("Testimonial submitted successfully!");
-      form.reset();
-      loadTestimonials(); // refresh testimonials after submission
+    if (res.ok) {
+      alertBox.innerHTML = `
+        <div class="alert alert-success mt-3" role="alert">
+          Thank you! Your testimonial is live.
+        </div>
+      `;
+      document.getElementById("testimonial-form").reset();
+      loadTestimonials();
     } else {
-      alert("Error submitting testimonial.");
+      alertBox.innerHTML = `
+        <div class="alert alert-danger mt-3" role="alert">
+          Oops! Something went wrong. Please try again.
+        </div>
+      `;
     }
-  } else {
-    alert("Please fill in all fields before submitting.");
+  } catch (error) {
+    console.error(error);
+    alertBox.innerHTML = `
+      <div class="alert alert-danger mt-3" role="alert">
+        Error submitting testimonial.
+      </div>
+    `;
   }
 });
 
-// 🔧 Step 2: Load Testimonials from WordPress
+// Load testimonials and render as Bootstrap cards
 async function loadTestimonials() {
-  const res = await fetch("http://localhost/cms_projects/wordpress/wp-json/wp/v2/comments?post=1");
-  const comments = await res.json();
+  try {
+    const res = await fetch("http://localhost/cms_projects/wordpress/wp-json/wp/v2/comments?post=8");
+    const testimonials = await res.json();
 
-  const testimonialsRow = document.querySelector("#testimonials .row");
-  testimonialsRow.innerHTML = "";
+    const container = document.getElementById("testimonials-container");
+    container.innerHTML = testimonials.map(t => renderTestimonialCard(t)).join('');
+  } catch (error) {
+    console.error("Error loading testimonials:", error);
+  }
+}
 
-  comments.forEach(c => {
-    const col = document.createElement("div");
-    col.className = "col-lg-3 col-md-6 mb-4";
-    col.innerHTML = `
-      <div class="card shadow-sm border-0 h-100">
-        <img src="https://via.placeholder.com/150x100?text=${encodeURIComponent(c.author_name)}" 
-             class="card-img-top" alt="${c.author_name}">
+// Render a single testimonial card
+function renderTestimonialCard(t) {
+  const stars = '★'.repeat(t.meta?.rating || 0);
+  return `
+    <div class="col-md-6">
+      <div class="card mb-3 shadow-sm">
         <div class="card-body">
-          <p class="card-text">"${c.content.rendered}"</p>
-          <div class="text-warning mb-2">
-            ${"★".repeat(c.meta?.rating || 5)}${"☆".repeat(5 - (c.meta?.rating || 5))}
-          </div>
-          <h6 class="card-subtitle text-muted mt-3">${c.author_name}, ${c.meta?.position || ""}</h6>
+          <h5 class="card-title">${t.author_name}</h5>
+          <h6 class="card-subtitle mb-2 text-muted">${t.meta?.position || ''}</h6>
+          <p class="card-text">${t.content.rendered}</p>
+          <div class="text-warning">${stars}</div>
         </div>
       </div>
-    `;
-    testimonialsRow.appendChild(col);
-  });
+    </div>
+  `;
 }
 
 // Load testimonials on page load
-loadTestimonials();
+document.addEventListener("DOMContentLoaded", loadTestimonials);
